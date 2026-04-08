@@ -1,0 +1,5 @@
+{
+  "image": "transitionmonitordockerregistry.azurecr.io/hello-pacta:latest",
+  "blobContainer": "images",
+  "blobBaseName": "hello-pacta--latest.tar.gz"
+}
