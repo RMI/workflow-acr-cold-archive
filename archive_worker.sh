@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "${QUEUE_MESSAGE_FILE:=/tmp/message.json}"
 : "${SCRATCH_DIR:=/mnt/scratch}"
 : "${PIGZ_LEVEL:=1}"
 : "${AZURE_STORAGE_AUTH_MODE:=login}"
+: "${QUEUE_VISIBILITY_TIMEOUT_SECONDS:=3600}"
+: "${QUEUE_MESSAGE_FILE:=}"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -13,11 +14,20 @@ require_cmd() {
   }
 }
 
+require_env() {
+  local name="$1"
+  if [[ -z "${!name:-}" ]]; then
+    echo "missing required env var: $name" >&2
+    exit 2
+  fi
+}
+
 require_cmd az
 require_cmd skopeo
 require_cmd pigz
 require_cmd jq
 require_cmd date
+require_cmd base64
 
 log() {
   printf '[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
@@ -33,10 +43,56 @@ login_azure() {
   fi
 }
 
+queue_mode_enabled() {
+  [[ -n "${QUEUE_ACCOUNT:-}" && -n "${QUEUE_NAME:-}" ]]
+}
+
+read_message_from_file() {
+  if [[ -z "$QUEUE_MESSAGE_FILE" ]]; then
+    echo "QUEUE_MESSAGE_FILE must be set when not using queue mode" >&2
+    exit 2
+  fi
+  RECEIPT_HANDLE=""
+  MESSAGE_ID="local-file"
+  MESSAGE_JSON="$(cat "$QUEUE_MESSAGE_FILE")"
+}
+
+read_message_from_queue() {
+  require_env QUEUE_ACCOUNT
+  require_env QUEUE_NAME
+
+  log "Claiming one message from queue ${QUEUE_NAME} with ${QUEUE_VISIBILITY_TIMEOUT_SECONDS}s visibility timeout"
+
+  local raw
+  raw="$(az storage message get \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$QUEUE_ACCOUNT" \
+    --queue-name "$QUEUE_NAME" \
+    --visibility-timeout "$QUEUE_VISIBILITY_TIMEOUT_SECONDS" \
+    --num-messages 1 \
+    --output json)"
+
+  if [[ "$(jq 'length' <<<"$raw")" -eq 0 ]]; then
+    log "No queue messages available"
+    exit 0
+  fi
+
+  MESSAGE_ID="$(jq -r '.[0].id' <<<"$raw")"
+  POP_RECEIPT="$(jq -r '.[0].popReceipt' <<<"$raw")"
+  MESSAGE_TEXT_B64="$(jq -r '.[0].content' <<<"$raw")"
+  MESSAGE_JSON="$(printf '%s' "$MESSAGE_TEXT_B64" | base64 --decode)"
+}
+
 read_message() {
-  IMAGE_REF="$(jq -r '.image' "$QUEUE_MESSAGE_FILE")"
-  BLOB_CONTAINER="$(jq -r '.blobContainer' "$QUEUE_MESSAGE_FILE")"
-  BLOB_BASENAME="$(jq -r '.blobBaseName' "$QUEUE_MESSAGE_FILE")"
+  if queue_mode_enabled; then
+    read_message_from_queue
+  else
+    read_message_from_file
+  fi
+
+  IMAGE_REF="$(jq -r '.image' <<<"$MESSAGE_JSON")"
+  BLOB_CONTAINER="$(jq -r '.blobContainer' <<<"$MESSAGE_JSON")"
+  BLOB_BASENAME="$(jq -r '.blobBaseName' <<<"$MESSAGE_JSON")"
 
   if [[ -z "$IMAGE_REF" || "$IMAGE_REF" == "null" ]]; then
     echo "queue message missing .image" >&2
@@ -85,6 +141,7 @@ inspect_digest() {
 }
 
 make_paths() {
+  mkdir -p "$SCRATCH_DIR"
   TAR_PATH="${SCRATCH_DIR}/image.tar"
   GZ_PATH="${SCRATCH_DIR}/${BLOB_BASENAME}"
   MANIFEST_PATH="${SCRATCH_DIR}/${BLOB_BASENAME}.json"
@@ -136,6 +193,8 @@ write_manifest() {
 }
 
 upload_outputs() {
+  require_env STORAGE_ACCOUNT
+
   log "Uploading archive blob"
   az storage blob upload \
     --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
@@ -156,23 +215,36 @@ upload_outputs() {
     --overwrite true
 }
 
+delete_claimed_message() {
+  if ! queue_mode_enabled; then
+    return 0
+  fi
+
+  log "Deleting processed queue message ${MESSAGE_ID}"
+  az storage message delete \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$QUEUE_ACCOUNT" \
+    --queue-name "$QUEUE_NAME" \
+    --id "$MESSAGE_ID" \
+    --pop-receipt "$POP_RECEIPT" >/dev/null
+}
+
 cleanup() {
   rm -f "$TAR_PATH" "$GZ_PATH" "$MANIFEST_PATH" "${SCRATCH_DIR}/inspect.json"
 }
 
 main() {
-  mkdir -p "$SCRATCH_DIR"
-
   login_azure
   read_message
   parse_image_ref
   get_acr_registry_name
   TOKEN="$(get_acr_token)"
-  inspect_digest
   make_paths
+  inspect_digest
   copy_and_compress
   write_manifest
   upload_outputs
+  delete_claimed_message
   cleanup
 
   log "Completed ${IMAGE_REF}"
