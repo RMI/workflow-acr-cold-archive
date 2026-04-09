@@ -292,8 +292,7 @@ upload_outputs() {
     --container-name "$BLOB_CONTAINER" \
     --name "$BLOB_BASENAME" \
     --file "$GZ_PATH" \
-    --overwrite true \
-    --tier Archive >/dev/null
+    --overwrite true >/dev/null
 
   step "Uploading manifest blob"
   run_cmd az storage blob upload \
@@ -302,8 +301,7 @@ upload_outputs() {
     --container-name "$BLOB_CONTAINER" \
     --name "${BLOB_BASENAME}.json" \
     --file "$MANIFEST_PATH" \
-    --overwrite true \
-    --tier Archive >/dev/null
+    --overwrite true >/dev/null
 }
 
 delete_claimed_message() {

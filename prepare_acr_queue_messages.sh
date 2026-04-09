@@ -174,6 +174,7 @@ enqueue_message() {
     --account-name "${STORAGE_ACCOUNT}" \
     --queue-name "${QUEUE_NAME}" \
     --content "${json}" \
+    --time-to-live -1 \
     --output none
 }
 
