@@ -4,6 +4,7 @@ RUN tdnf install -y \
         skopeo \
         pigz \
         jq \
+        awk \
     && tdnf clean all
 
 WORKDIR /app
