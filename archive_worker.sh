@@ -74,7 +74,7 @@ login_azure() {
   step "Logging into Azure"
   if [[ -n "${AZURE_CLIENT_ID:-}" ]]; then
     log "Using user-assigned managed identity client_id=${AZURE_CLIENT_ID}"
-    run_cmd az login --identity --username "$AZURE_CLIENT_ID" >/dev/null
+    run_cmd az login --identity --client-id "$AZURE_CLIENT_ID" >/dev/null
   else
     log "Using system-assigned managed identity"
     run_cmd az login --identity >/dev/null
