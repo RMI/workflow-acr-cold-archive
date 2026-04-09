@@ -72,6 +72,7 @@ run_cmd() {
 
 login_azure() {
   step "Logging into Azure"
+  export APPSETTING_WEBSITE_SITE_NAME=DUMMY
   if [[ -n "${AZURE_CLIENT_ID:-}" ]]; then
     log "Using user-assigned managed identity client_id=${AZURE_CLIENT_ID}"
     run_cmd az login --identity --client-id "$AZURE_CLIENT_ID" >/dev/null
