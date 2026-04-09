@@ -202,10 +202,12 @@ inspect_digest() {
 
 make_paths() {
   step "Preparing scratch paths"
-  mkdir -p "$SCRATCH_DIR"
-  TAR_PATH="${SCRATCH_DIR}/image.tar"
-  GZ_PATH="${SCRATCH_DIR}/${BLOB_BASENAME}"
-  MANIFEST_PATH="${SCRATCH_DIR}/${BLOB_BASENAME}.json"
+  WORK_DIR="${SCRATCH_DIR}/${MESSAGE_ID:-$(date +%s)-$$}"
+  mkdir -p "$WORK_DIR"
+
+  TAR_PATH="${WORK_DIR}/image.tar"
+  GZ_PATH="${WORK_DIR}/${BLOB_BASENAME}"
+  MANIFEST_PATH="${WORK_DIR}/${BLOB_BASENAME}.json"
   log "Scratch directory=${SCRATCH_DIR}"
   vlog "Tar path=${TAR_PATH}"
   vlog "Archive path=${GZ_PATH}"
@@ -321,7 +323,7 @@ delete_claimed_message() {
 
 cleanup() {
   step "Cleaning scratch files"
-  rm -f "$TAR_PATH" "$GZ_PATH" "$MANIFEST_PATH" "${SCRATCH_DIR}/inspect.json"
+  rm -rf "$WORK_DIR"
 }
 
 print_startup_summary() {
