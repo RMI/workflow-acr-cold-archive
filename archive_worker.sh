@@ -119,8 +119,7 @@ read_message_from_queue() {
 
   MESSAGE_ID="$(jq -r '.[0].id' <<<"$raw")"
   POP_RECEIPT="$(jq -r '.[0].popReceipt' <<<"$raw")"
-  MESSAGE_TEXT_B64="$(jq -r '.[0].content' <<<"$raw")"
-  MESSAGE_JSON="$(printf '%s' "$MESSAGE_TEXT_B64" | base64 --decode)"
+  MESSAGE_JSON="$(jq -r '.[0].content' <<<"$raw")"
 
   log "Claimed queue message id=${MESSAGE_ID}"
   vlog "Decoded message payload: ${MESSAGE_JSON}"
