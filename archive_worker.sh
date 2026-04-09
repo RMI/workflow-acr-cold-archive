@@ -302,7 +302,8 @@ upload_outputs() {
     --container-name "$BLOB_CONTAINER" \
     --name "${BLOB_BASENAME}.json" \
     --file "$MANIFEST_PATH" \
-    --overwrite true >/dev/null
+    --overwrite true \
+    --tier Archive >/dev/null
 }
 
 delete_claimed_message() {
