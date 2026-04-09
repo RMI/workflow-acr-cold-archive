@@ -36,9 +36,8 @@ require_cmd wc
 require_cmd du
 
 log() {
-  printf '[%s] %s
-  ' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
-  }
+  printf '[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
+}
 
 vlog() {
   if [[ "$VERBOSE" == "1" ]]; then
@@ -105,12 +104,12 @@ read_message_from_queue() {
   log "Queue account=${QUEUE_ACCOUNT} queue=${QUEUE_NAME} visibility_timeout=${QUEUE_VISIBILITY_TIMEOUT_SECONDS}s"
 
   local raw
-  raw="$(az storage message get 
-    --auth-mode "$AZURE_STORAGE_AUTH_MODE" 
-    --account-name "$QUEUE_ACCOUNT" 
-    --queue-name "$QUEUE_NAME" 
-    --visibility-timeout "$QUEUE_VISIBILITY_TIMEOUT_SECONDS" 
-    --num-messages 1 
+  raw="$(az storage message get \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$QUEUE_ACCOUNT" \
+    --queue-name "$QUEUE_NAME" \
+    --visibility-timeout "$QUEUE_VISIBILITY_TIMEOUT_SECONDS" \
+    --num-messages 1 \
     --output json)"
 
   if [[ "$(jq 'length' <<<"$raw")" -eq 0 ]]; then
@@ -181,10 +180,10 @@ resolve_registry_creds() {
     log "Using explicit ACR token credentials for registry access"
   else
   log "Using Azure-managed auth to obtain ACR access token"
-  TOKEN="$(az acr login 
-  --name "$ACR_NAME" 
-  --expose-token 
-  --output tsv 
+  TOKEN="$(az acr login \
+  --name "$ACR_NAME" \
+  --expose-token \
+  --output tsv \
   --query accessToken)"
   CREDS="00000000-0000-0000-0000-000000000000:${TOKEN}"
   fi
@@ -192,8 +191,8 @@ resolve_registry_creds() {
 
 inspect_digest() {
   step "Inspecting image metadata"
-  run_cmd skopeo inspect 
-    --creds "$CREDS" 
+  run_cmd skopeo inspect \
+    --creds "$CREDS" \
     "docker://${IMAGE_REF}" > "${SCRATCH_DIR}/inspect.json"
 
   DIGEST="$(jq -r '.Digest' "${SCRATCH_DIR}/inspect.json")"
@@ -224,9 +223,9 @@ copy_and_compress() {
   rm -f "$TAR_PATH" "$GZ_PATH" "$MANIFEST_PATH"
 
   step "Copying image to docker archive"
-  run_cmd skopeo copy 
-  --src-creds "$CREDS" 
-    "docker://${IMAGE_REF}" 
+  run_cmd skopeo copy \
+  --src-creds "$CREDS" \
+    "docker://${IMAGE_REF}" \
     "docker-archive:${TAR_PATH}:${IMAGE_REF}"
 log_file_stats "$TAR_PATH"
 
@@ -252,15 +251,15 @@ write_manifest() {
   CREATED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   ARCHIVE_BLOB="${BLOB_CONTAINER}/${BLOB_BASENAME}"
 
-  jq -n 
-    --arg image "$IMAGE_REF" 
-    --arg archiveBlob "$ARCHIVE_BLOB" 
-    --arg createdAtUtc "$CREATED_AT" 
-    --arg registry "$LOGIN_SERVER" 
-    --arg repository "$REPOSITORY" 
-    --arg tag "$TAG" 
-    --arg digest "$DIGEST" 
-    --argjson level "$PIGZ_LEVEL" 
+  jq -n \
+    --arg image "$IMAGE_REF" \
+    --arg archiveBlob "$ARCHIVE_BLOB" \
+    --arg createdAtUtc "$CREATED_AT" \
+    --arg registry "$LOGIN_SERVER" \
+    --arg repository "$REPOSITORY" \
+    --arg tag "$TAG" \
+    --arg digest "$DIGEST" \
+    --argjson level "$PIGZ_LEVEL" \
     '{
       image: $image,
       archiveBlob: $archiveBlob,
@@ -287,22 +286,22 @@ upload_outputs() {
 
   step "Uploading archive blob"
   log "Uploading to account=${STORAGE_ACCOUNT} container=${BLOB_CONTAINER} name=${BLOB_BASENAME}"
-  run_cmd az storage blob upload 
-    --auth-mode "$AZURE_STORAGE_AUTH_MODE" 
-    --account-name "$STORAGE_ACCOUNT" 
-    --container-name "$BLOB_CONTAINER" 
-    --name "$BLOB_BASENAME" 
-    --file "$GZ_PATH" 
-    --overwrite true 
+  run_cmd az storage blob upload \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$STORAGE_ACCOUNT" \
+    --container-name "$BLOB_CONTAINER" \
+    --name "$BLOB_BASENAME" \
+    --file "$GZ_PATH" \
+    --overwrite true \
     --tier Archive >/dev/null
 
   step "Uploading manifest blob"
-  run_cmd az storage blob upload 
-    --auth-mode "$AZURE_STORAGE_AUTH_MODE" 
-    --account-name "$STORAGE_ACCOUNT" 
-    --container-name "$BLOB_CONTAINER" 
-    --name "${BLOB_BASENAME}.json" 
-    --file "$MANIFEST_PATH" 
+  run_cmd az storage blob upload \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$STORAGE_ACCOUNT" \
+    --container-name "$BLOB_CONTAINER" \
+    --name "${BLOB_BASENAME}.json" \
+    --file "$MANIFEST_PATH" \
     --overwrite true >/dev/null
 }
 
@@ -313,11 +312,11 @@ delete_claimed_message() {
 
   step "Deleting processed queue message"
   log "Deleting queue message id=${MESSAGE_ID} from queue=${QUEUE_NAME}"
-  run_cmd az storage message delete 
-    --auth-mode "$AZURE_STORAGE_AUTH_MODE" 
-    --account-name "$QUEUE_ACCOUNT" 
-    --queue-name "$QUEUE_NAME" 
-    --id "$MESSAGE_ID" 
+  run_cmd az storage message delete \
+    --auth-mode "$AZURE_STORAGE_AUTH_MODE" \
+    --account-name "$QUEUE_ACCOUNT" \
+    --queue-name "$QUEUE_NAME" \
+    --id "$MESSAGE_ID" \
     --pop-receipt "$POP_RECEIPT" >/dev/null
 }
 
